@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>GHIN Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green-deep: #1a3a2a;
+      --green-mid:  #2d6a4f;
+      --green-light:#52b788;
+      --gold:       #c9a84c;
+      --gold-light: #e9c46a;
+      --cream:      #f4f1e8;
+      --cream-dark: #e8e2d0;
+      --ink:        #1c1c1c;
+      --muted:      #6b7059;
+      --white:      #ffffff;
+      --shadow:     rgba(26,58,42,0.15);
+    }
+
+    body {
+      font-family: 'DM Mono', monospace;
+      background: var(--cream);
+      color: var(--ink);
+      min-height: 100vh;
+    }
+
+    /* ── LOGIN ── */
+    #login-screen {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--green-deep);
+      background-image:
+        radial-gradient(ellipse at 20% 50%, rgba(45,106,79,0.4) 0%, transparent 60%),
+        radial-gradient(ellipse at 80% 20%, rgba(82,183,136,0.15) 0%, transparent 50%);
+      position: relative;
+      overflow: hidden;
+    }
+
+    #login-screen::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: repeating-linear-gradient(
+        0deg, transparent, transparent 39px,
+        rgba(255,255,255,0.03) 39px, rgba(255,255,255,0.03) 40px
+      ), repeating-linear-gradient(
+        90deg, transparent, transparent 39px,
+        rgba(255,255,255,0.03) 39px, rgba(255,255,255,0.03) 40px
+      );
+    }
+
+    .login-card {
+      position: relative;
+      background: var(--cream);
+      border: 1px solid var(--cream-dark);
+      padding: 3rem 3.5rem;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 32px 80px rgba(0,0,0,0.4);
+    }
+
+    .login-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, var(--green-mid), var(--gold));
+    }
+
+    .login-logo {
+      font-family: 'DM Serif Display', serif;
+      font-size: 2rem;
+      color: var(--green-deep);
+      letter-spacing: -0.02em;
+      margin-bottom: 0.25rem;
+    }
+
+    .login-tagline {
+      font-size: 0.7rem;
+      color: var(--muted);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      margin-bottom: 2.5rem;
+    }
+
+    .login-card label {
+      display: block;
+      font-size: 0.65rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.5rem;
+    }
+
+    .login-card input {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      border: 1px solid var(--cream-dark);
+      background: var(--white);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.9rem;
+      color: var(--ink);
+      margin-bottom: 1.25rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .login-card input:focus { border-color: var(--green-mid); }
+
+    .login-btn {
+      width: 100%;
+      padding: 0.85rem;
+      background: var(--green-deep);
+      color: var(--cream);
+      border: none;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.8rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+      margin-top: 0.5rem;
+    }
+
+    .login-btn:hover { background: var(--green-mid); }
+    .login-btn:active { transform: scale(0.99); }
+    .login-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .login-note {
+      margin-top: 1.5rem;
+      font-size: 0.65rem;
+      color: var(--muted);
+      line-height: 1.6;
+      text-align: center;
+    }
+
+    .error-msg {
+      background: #fde8e8;
+      border-left: 3px solid #c0392b;
+      padding: 0.75rem 1rem;
+      font-size: 0.75rem;
+      color: #c0392b;
+      margin-bottom: 1rem;
+    }
+
+    /* ── APP SHELL ── */
+    #app { display: none; min-height: 100vh; flex-direction: column; }
+
+    header {
+      background: var(--green-deep);
+      color: var(--cream);
+      padding: 0 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 60px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 12px var(--shadow);
+    }
+
+    .header-logo {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.4rem;
+      letter-spacing: -0.01em;
+    }
+
+    .header-logo span { color: var(--gold-light); }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+    }
+
+    .user-badge {
+      font-size: 0.7rem;
+      color: var(--green-light);
+      letter-spacing: 0.05em;
+    }
+
+    .logout-btn {
+      background: none;
+      border: 1px solid rgba(255,255,255,0.2);
+      color: var(--cream);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 0.4rem 0.9rem;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    .logout-btn:hover { border-color: var(--gold); background: rgba(201,168,76,0.1); }
+
+    /* ── TABS ── */
+    .tab-bar {
+      background: var(--white);
+      border-bottom: 1px solid var(--cream-dark);
+      padding: 0 2rem;
+      display: flex;
+      gap: 0;
+    }
+
+    .tab-btn {
+      background: none;
+      border: none;
+      border-bottom: 3px solid transparent;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding: 1rem 1.25rem;
+      cursor: pointer;
+      transition: color 0.2s, border-color 0.2s;
+    }
+
+    .tab-btn:hover { color: var(--green-mid); }
+    .tab-btn.active { color: var(--green-deep); border-bottom-color: var(--gold); }
+
+    /* ── MAIN CONTENT ── */
+    main { flex: 1; padding: 2rem; max-width: 1200px; width: 100%; margin: 0 auto; }
+
+    .tab-panel { display: none; animation: fadeIn 0.3s ease; }
+    .tab-panel.active { display: block; }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* ── STAT CARDS ── */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .stat-card {
+      background: var(--white);
+      border: 1px solid var(--cream-dark);
+      padding: 1.5rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .stat-card::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--green-mid), var(--gold));
+    }
+
+    .stat-label {
+      font-size: 0.6rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.5rem;
+    }
+
+    .stat-value {
+      font-family: 'DM Serif Display', serif;
+      font-size: 2.2rem;
+      color: var(--green-deep);
+      line-height: 1;
+    }
+
+    .stat-sub {
+      font-size: 0.65rem;
+      color: var(--muted);
+      margin-top: 0.35rem;
+    }
+
+    .trend-up { color: #c0392b; }
+    .trend-down { color: var(--green-mid); }
+
+    /* ── SECTION HEADERS ── */
+    .section-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+      border-bottom: 1px solid var(--cream-dark);
+      padding-bottom: 0.75rem;
+    }
+
+    .section-title {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.3rem;
+      color: var(--green-deep);
+    }
+
+    .section-meta {
+      font-size: 0.65rem;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+    }
+
+    /* ── TABLE ── */
+    .table-wrap {
+      background: var(--white);
+      border: 1px solid var(--cream-dark);
+      overflow-x: auto;
+    }
+
+    table { width: 100%; border-collapse: collapse; }
+
+    thead { background: var(--green-deep); color: var(--cream); }
+
+    th {
+      padding: 0.75rem 1rem;
+      font-size: 0.6rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      text-align: left;
+      font-weight: 500;
+    }
+
+    td {
+      padding: 0.7rem 1rem;
+      font-size: 0.8rem;
+      border-bottom: 1px solid var(--cream-dark);
+      vertical-align: middle;
+    }
+
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(82,183,136,0.05); }
+
+    .score-diff {
+      display: inline-block;
+      padding: 0.15rem 0.45rem;
+      font-size: 0.7rem;
+      font-weight: 500;
+    }
+
+    .score-diff.over { background: #fde8e8; color: #c0392b; }
+    .score-diff.under { background: #e8f5ee; color: var(--green-mid); }
+    .score-diff.even { background: var(--cream-dark); color: var(--muted); }
+
+    /* ── TREND CHART ── */
+    .chart-wrap {
+      background: var(--white);
+      border: 1px solid var(--cream-dark);
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    canvas { width: 100% !important; }
+
+    /* ── LOADING / EMPTY ── */
+    .loading {
+      text-align: center;
+      padding: 3rem;
+      color: var(--muted);
+      font-size: 0.75rem;
+      letter-spacing: 0.1em;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 18px; height: 18px;
+      border: 2px solid var(--cream-dark);
+      border-top-color: var(--green-mid);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      vertical-align: middle;
+      margin-right: 0.5rem;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .empty-state {
+      text-align: center;
+      padding: 3rem;
+      color: var(--muted);
+      font-size: 0.75rem;
+    }
+
+    /* ── MEMBER FILTER ── */
+    .filter-row {
+      display: flex;
+      gap: 0.75rem;
+      margin-bottom: 1.25rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .filter-row input {
+      padding: 0.5rem 0.9rem;
+      border: 1px solid var(--cream-dark);
+      background: var(--white);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.78rem;
+      color: var(--ink);
+      outline: none;
+      flex: 1;
+      min-width: 180px;
+    }
+
+    .filter-row input:focus { border-color: var(--green-mid); }
+
+    .refresh-btn {
+      padding: 0.5rem 1rem;
+      background: var(--green-deep);
+      color: var(--cream);
+      border: none;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.2s;
+      white-space: nowrap;
+    }
+
+    .refresh-btn:hover { background: var(--green-mid); }
+    .refresh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ── HANDICAP PILL ── */
+    .hcp-pill {
+      display: inline-block;
+      background: var(--green-deep);
+      color: var(--gold-light);
+      font-family: 'DM Serif Display', serif;
+      font-size: 0.95rem;
+      padding: 0.15rem 0.6rem;
+      letter-spacing: 0.02em;
+    }
+
+    /* ── FOOTER ── */
+    footer {
+      text-align: center;
+      padding: 1.5rem;
+      font-size: 0.6rem;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      border-top: 1px solid var(--cream-dark);
+    }
+
+    /* responsive */
+    @media (max-width: 600px) {
+      main { padding: 1rem; }
+      .login-card { padding: 2rem 1.5rem; }
+      header { padding: 0 1rem; }
+      .tab-bar { padding: 0 0.5rem; overflow-x: auto; }
+      .tab-btn { padding: 1rem 0.75rem; white-space: nowrap; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══ LOGIN ══ -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">⛳ GHIN<span>Dashboard</span></div>
+    <div class="login-tagline">Golf Handicap & Score Tracker</div>
+    <div id="login-error" class="error-msg" style="display:none"></div>
+    <label for="username">GHIN Username</label>
+    <input type="text" id="username" placeholder="Your GHIN username" autocomplete="username"/>
+    <label for="password">Password</label>
+    <input type="password" id="password" placeholder="Your GHIN password" autocomplete="current-password"/>
+    <button class="login-btn" id="login-btn" onclick="doLogin()">Sign In</button>
+    <p class="login-note">
+      Your credentials are used only to authenticate with GHIN's API.<br>
+      They are never stored or transmitted elsewhere.
+    </p>
+  </div>
+</div>
+
+<!-- ══ APP ══ -->
+<div id="app">
+  <header>
+    <div class="header-logo">⛳ GHIN<span>Dashboard</span></div>
+    <div class="header-right">
+      <span class="user-badge" id="user-badge"></span>
+      <button class="logout-btn" onclick="doLogout()">Sign Out</button>
+    </div>
+  </header>
+
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="showTab('my-scores', this)">My Scores</button>
+    <button class="tab-btn" onclick="showTab('my-trend', this)">Handicap Trend</button>
+    <button class="tab-btn" onclick="showTab('members', this)">Club Members</button>
+  </div>
+
+  <main>
+    <!-- ── MY SCORES ── -->
+    <div id="tab-my-scores" class="tab-panel active">
+      <div class="stat-grid" id="my-stats"></div>
+      <div class="section-header">
+        <span class="section-title">Score History</span>
+        <span class="section-meta" id="score-count"></span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Course</th>
+              <th>Tees</th>
+              <th>Rating / Slope</th>
+              <th>Score</th>
+              <th>Differential</th>
+              <th>Type</th>
+            </tr>
+          </thead>
+          <tbody id="scores-tbody">
+            <tr><td colspan="7" class="loading"><span class="spinner"></span>Loading scores…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── TREND ── -->
+    <div id="tab-my-trend" class="tab-panel">
+      <div class="stat-grid" id="trend-stats"></div>
+      <div class="section-header">
+        <span class="section-title">Handicap Index Over Time</span>
+        <span class="section-meta">Last 20 revisions</span>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="trend-chart" height="280"></canvas>
+      </div>
+      <div class="section-header" style="margin-top:2rem">
+        <span class="section-title">Score Differentials</span>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="diff-chart" height="220"></canvas>
+      </div>
+    </div>
+
+    <!-- ── MEMBERS ── -->
+    <div id="tab-members" class="tab-panel">
+      <div class="filter-row">
+        <input type="text" id="member-search" placeholder="Search by name or GHIN #…" oninput="filterMembers()"/>
+        <button class="refresh-btn" id="refresh-members-btn" onclick="loadMembers()">↻ Refresh</button>
+      </div>
+      <div class="section-header">
+        <span class="section-title">Club Members</span>
+        <span class="section-meta" id="member-count"></span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>GHIN #</th>
+              <th>Handicap Index</th>
+              <th>Trend</th>
+              <th>Club</th>
+              <th>Last Revised</th>
+            </tr>
+          </thead>
+          <tbody id="members-tbody">
+            <tr><td colspan="6" class="loading"><span class="spinner"></span>Loading members…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+  <footer>GHIN Dashboard &nbsp;·&nbsp; Data provided by USGA GHIN &nbsp;·&nbsp; Not affiliated with USGA</footer>
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+
+<script>
+// ══════════════════════════════════════════
+//  CONFIG
+// ══════════════════════════════════════════
+const API_BASE = 'https://api.ghin.com/api/v1';
+let AUTH_TOKEN = null;
+let GOLFER_ID  = null;
+let allMembers = [];
+let trendChartInstance = null;
+let diffChartInstance  = null;
+
+// ══════════════════════════════════════════
+//  AUTH
+// ══════════════════════════════════════════
+async function doLogin() {
+  const username = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value;
+  const btn      = document.getElementById('login-btn');
+  const errEl    = document.getElementById('login-error');
+
+  if (!username || !password) {
+    showError('Please enter your GHIN username and password.'); return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Signing in…';
+  errEl.style.display = 'none';
+
+  try {
+    const res = await fetch(`${API_BASE}/golfer_login.json`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user: { email_or_ghin: username, password } })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || !data.golfer_user) {
+      throw new Error(data.message || data.error || 'Login failed. Check your credentials.');
+    }
+
+    AUTH_TOKEN = data.golfer_user.golfer_user_token;
+    GOLFER_ID  = data.golfer_user.ghin_number || data.golfer_user.id;
+
+    const name = `${data.golfer_user.first_name || ''} ${data.golfer_user.last_name || ''}`.trim();
+    document.getElementById('user-badge').textContent = name || username;
+
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+    document.getElementById('app').style.flexDirection = 'column';
+
+    loadMyScores();
+    loadMembers();
+
+  } catch (err) {
+    showError(err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Sign In';
+  }
+}
+
+function showError(msg) {
+  const el = document.getElementById('login-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function doLogout() {
+  AUTH_TOKEN = null; GOLFER_ID = null; allMembers = [];
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('username').value = '';
+  document.getElementById('password').value = '';
+  document.getElementById('login-error').style.display = 'none';
+}
+
+// ══════════════════════════════════════════
+//  HELPERS
+// ══════════════════════════════════════════
+function authHeaders() {
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `Token token="${AUTH_TOKEN}"`
+  };
+}
+
+function fmtDate(str) {
+  if (!str) return '—';
+  const d = new Date(str);
+  return isNaN(d) ? str : d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+}
+
+function diffBadge(diff) {
+  if (diff == null) return '<span class="score-diff even">—</span>';
+  const n = parseFloat(diff);
+  const cls = n > 0 ? 'over' : n < 0 ? 'under' : 'even';
+  const sign = n > 0 ? '+' : '';
+  return `<span class="score-diff ${cls}">${sign}${n.toFixed(1)}</span>`;
+}
+
+function trendArrow(trend) {
+  if (trend == null || trend === 0) return '<span style="color:var(--muted)">→ 0.0</span>';
+  return trend > 0
+    ? `<span class="trend-up">↑ +${parseFloat(trend).toFixed(1)}</span>`
+    : `<span class="trend-down">↓ ${parseFloat(trend).toFixed(1)}</span>`;
+}
+
+// ══════════════════════════════════════════
+//  MY SCORES
+// ══════════════════════════════════════════
+async function loadMyScores() {
+  try {
+    const res = await fetch(
+      `${API_BASE}/golfers/${GOLFER_ID}/scores.json?per_page=100&page=1`,
+      { headers: authHeaders() }
+    );
+    const data = await res.json();
+
+    const scores = data.scores || [];
+    renderStats(data.golfer || {}, scores);
+    renderScoresTable(scores);
+    renderTrend(scores);
+  } catch(e) {
+    document.getElementById('scores-tbody').innerHTML =
+      `<tr><td colspan="7" class="empty-state">⚠ Could not load scores: ${e.message}</td></tr>`;
+  }
+}
+
+function renderStats(golfer, scores) {
+  const hcp   = golfer.handicap_index ?? golfer.handicap_index ?? '—';
+  const trend = golfer.trend ?? null;
+  const lo    = golfer.low_handicap_index ?? '—';
+  const count = scores.length;
+  const recent = scores.slice(0,5);
+  const avg = recent.length
+    ? (recent.reduce((s,r)=>s+(r.adjusted_gross_score||0),0)/recent.length).toFixed(1)
+    : '—';
+
+  document.getElementById('my-stats').innerHTML = `
+    <div class="stat-card">
+      <div class="stat-label">Handicap Index</div>
+      <div class="stat-value">${hcp}</div>
+      <div class="stat-sub">${trendArrow(trend)} recent trend</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Low Index</div>
+      <div class="stat-value">${lo}</div>
+      <div class="stat-sub">Career low</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Rounds Recorded</div>
+      <div class="stat-value">${count}</div>
+      <div class="stat-sub">All time</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Avg Score (last 5)</div>
+      <div class="stat-value">${avg}</div>
+      <div class="stat-sub">Adjusted gross</div>
+    </div>
+  `;
+
+  // mirror to trend tab
+  document.getElementById('trend-stats').innerHTML =
+    document.getElementById('my-stats').innerHTML;
+}
+
+function renderScoresTable(scores) {
+  const tbody = document.getElementById('scores-tbody');
+  document.getElementById('score-count').textContent = `${scores.length} rounds`;
+
+  if (!scores.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No scores found.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = scores.map(s => {
+    const courseName = s.course_name || s.facility_name || '—';
+    const tees       = s.tee_name || '—';
+    const rating     = s.course_rating ? parseFloat(s.course_rating).toFixed(1) : '—';
+    const slope      = s.slope_rating || '—';
+    const score      = s.adjusted_gross_score || s.gross_score || '—';
+    const diff       = s.differential ?? null;
+    const type       = s.score_type || '—';
+    const date       = fmtDate(s.played_at || s.score_day_1);
+
+    const diffVsPar = (score !== '—' && s.par)
+      ? diffBadge(score - s.par)
+      : diffBadge(null);
+
+    return `<tr>
+      <td>${date}</td>
+      <td>${courseName}</td>
+      <td>${tees}</td>
+      <td>${rating} / ${slope}</td>
+      <td><strong>${score}</strong></td>
+      <td>${diff != null ? diffBadge(diff) : diffVsPar}</td>
+      <td style="font-size:0.7rem;color:var(--muted)">${type}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════
+//  TREND CHARTS
+// ══════════════════════════════════════════
+function renderTrend(scores) {
+  if (!scores.length) return;
+
+  // Build handicap trend from differentials (approximation using rolling best-8-of-20)
+  const sorted = [...scores].sort((a,b) => new Date(a.played_at||a.score_day_1) - new Date(b.played_at||b.score_day_1));
+  const diffs  = sorted.map(s => parseFloat(s.differential)).filter(n => !isNaN(n));
+  const labels = sorted
+    .filter(s => !isNaN(parseFloat(s.differential)))
+    .map(s => fmtDate(s.played_at||s.score_day_1));
+
+  // Rolling handicap estimate (best 8 of last 20 × 0.96)
+  const hcpLine = diffs.map((_,i) => {
+    const window = diffs.slice(Math.max(0, i-19), i+1);
+    const sorted8 = [...window].sort((a,b)=>a-b).slice(0, Math.min(8, Math.ceil(window.length*0.4)));
+    return sorted8.length ? +(sorted8.reduce((s,v)=>s+v,0)/sorted8.length * 0.96).toFixed(1) : null;
+  });
+
+  const green = '#2d6a4f';
+  const gold  = '#c9a84c';
+
+  // Destroy old charts
+  if (trendChartInstance) trendChartInstance.destroy();
+  if (diffChartInstance)  diffChartInstance.destroy();
+
+  // Handicap trend line
+  const ctx1 = document.getElementById('trend-chart').getContext('2d');
+  trendChartInstance = new Chart(ctx1, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Est. Handicap Index',
+        data: hcpLine,
+        borderColor: green,
+        backgroundColor: 'rgba(45,106,79,0.08)',
+        borderWidth: 2.5,
+        pointRadius: 3,
+        pointBackgroundColor: green,
+        fill: true,
+        tension: 0.4,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { font: { family: 'DM Mono', size: 10 }, maxTicksLimit: 10 }, grid: { display: false } },
+        y: { reverse: false, ticks: { font: { family: 'DM Mono', size: 10 } } }
+      }
+    }
+  });
+
+  // Score differentials bar
+  const ctx2 = document.getElementById('diff-chart').getContext('2d');
+  diffChartInstance = new Chart(ctx2, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Score Differential',
+        data: diffs,
+        backgroundColor: diffs.map(d => d <= 0 ? 'rgba(45,106,79,0.7)' : 'rgba(192,57,43,0.5)'),
+        borderColor:      diffs.map(d => d <= 0 ? green : '#c0392b'),
+        borderWidth: 1,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { font: { family: 'DM Mono', size: 10 }, maxTicksLimit: 10 }, grid: { display: false } },
+        y: { ticks: { font: { family: 'DM Mono', size: 10 } } }
+      }
+    }
+  });
+}
+
+// ══════════════════════════════════════════
+//  MEMBERS
+// ══════════════════════════════════════════
+async function loadMembers() {
+  const btn = document.getElementById('refresh-members-btn');
+  btn.disabled = true;
+  btn.textContent = '↻ Loading…';
+  document.getElementById('members-tbody').innerHTML =
+    '<tr><td colspan="6" class="loading"><span class="spinner"></span>Loading members…</td></tr>';
+
+  try {
+    // Fetch golfers accessible to this user (club members)
+    const res = await fetch(
+      `${API_BASE}/golfers.json?per_page=200&page=1`,
+      { headers: authHeaders() }
+    );
+    const data = await res.json();
+    allMembers = data.golfers || [];
+    renderMembersTable(allMembers);
+  } catch(e) {
+    document.getElementById('members-tbody').innerHTML =
+      `<tr><td colspan="6" class="empty-state">⚠ Could not load members: ${e.message}</td></tr>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '↻ Refresh';
+  }
+}
+
+function renderMembersTable(members) {
+  const tbody = document.getElementById('members-tbody');
+  document.getElementById('member-count').textContent = `${members.length} golfers`;
+
+  if (!members.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No members found.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = members.map(m => {
+    const name  = `${m.first_name||''} ${m.last_name||''}`.trim() || '—';
+    const ghin  = m.ghin_number || m.id || '—';
+    const hcp   = m.handicap_index != null ? m.handicap_index : '—';
+    const trend = m.trend ?? null;
+    const club  = m.club_name || '—';
+    const rev   = fmtDate(m.last_revision_date);
+    return `<tr>
+      <td><strong>${name}</strong></td>
+      <td style="font-size:0.75rem;color:var(--muted)">${ghin}</td>
+      <td><span class="hcp-pill">${hcp}</span></td>
+      <td>${trendArrow(trend)}</td>
+      <td style="font-size:0.75rem;color:var(--muted)">${club}</td>
+      <td style="font-size:0.75rem;color:var(--muted)">${rev}</td>
+    </tr>`;
+  }).join('');
+}
+
+function filterMembers() {
+  const q = document.getElementById('member-search').value.toLowerCase();
+  const filtered = allMembers.filter(m =>
+    (`${m.first_name} ${m.last_name}`).toLowerCase().includes(q) ||
+    String(m.ghin_number||'').includes(q)
+  );
+  renderMembersTable(filtered);
+}
+
+// ══════════════════════════════════════════
+//  TABS
+// ══════════════════════════════════════════
+function showTab(name, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  btn.classList.add('active');
+}
+
+// Allow Enter key on login
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('password').addEventListener('keydown', e => {
+    if (e.key === 'Enter') doLogin();
+  });
+});
+</script>
+</body>
+</html>
