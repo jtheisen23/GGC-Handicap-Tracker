@@ -2583,6 +2583,407 @@ function renderFormTable(golfers) {
   tbody.innerHTML = rows;
 }
 
+// ══════════════════════════════════════════
+//  VEGAS SCOREKEEPER
+// ══════════════════════════════════════════
+const vegas = {
+  players: [],       // [{name, handicap}]
+  strokeMode: 'low', // 'low' or 'full'
+  slope: 113,
+  rating: 72,
+  par: 72,
+  holePars: [],      // per-hole par [4,3,5,...]
+  scores: [],        // scores[playerIdx][holeIdx] = gross score or null
+  currentHole: 0,    // 0-indexed
+  phase: 'setup',    // 'setup' | 'scoring'
+  numHoles: 18
+};
+
+function vegasInit() {
+  if (vegas.phase === 'scoring') {
+    vegasRenderScoring();
+  } else {
+    vegasRenderSetup();
+  }
+}
+
+function openVegasOnly() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('user-badge').textContent = 'Guest';
+  // Show only Vegas tab
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-vegas').classList.add('active');
+  const btns = document.querySelectorAll('.tab-btn');
+  btns[btns.length - 1].classList.add('active');
+  vegasInit();
+}
+
+// ── SETUP SCREEN ──
+function vegasRenderSetup() {
+  vegas.phase = 'setup';
+  if (vegas.players.length === 0) {
+    vegas.players = [{name:'', handicap:''}, {name:'', handicap:''}];
+  }
+  const c = document.getElementById('tab-vegas-content');
+
+  let playerRows = vegas.players.map((p, i) => `
+    <div class="vegas-player-row">
+      <div class="vegas-player-num">${i+1}</div>
+      <input class="vegas-input" type="text" placeholder="Player name" value="${p.name}" oninput="vegas.players[${i}].name=this.value"/>
+      <input class="vegas-input small" type="number" placeholder="HCP" step="0.1" value="${p.handicap}" oninput="vegas.players[${i}].handicap=this.value"/>
+    </div>
+  `).join('');
+
+  c.innerHTML = `
+    <div class="vegas-setup-grid">
+      <div class="vegas-setup-section">
+        <label class="vegas-field-label">Players</label>
+        ${playerRows}
+        <div style="display:flex;gap:0.5rem;margin-top:0.75rem">
+          ${vegas.players.length < 6 ? '<button class="vegas-btn-secondary" onclick="vegasAddPlayer()">+ Add Player</button>' : ''}
+          ${vegas.players.length > 2 ? '<button class="vegas-btn-danger" onclick="vegasRemovePlayer()">- Remove Last</button>' : ''}
+        </div>
+      </div>
+
+      <div class="vegas-setup-section">
+        <label class="vegas-field-label">Course Info</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.75rem">
+          <div>
+            <label class="vegas-field-label" style="font-size:0.55rem">Slope</label>
+            <input class="vegas-input small" type="number" id="vegas-slope" placeholder="113" value="${vegas.slope}" oninput="vegas.slope=parseFloat(this.value)||113"/>
+          </div>
+          <div>
+            <label class="vegas-field-label" style="font-size:0.55rem">Rating</label>
+            <input class="vegas-input small" type="number" step="0.1" id="vegas-rating" placeholder="72.0" value="${vegas.rating}" oninput="vegas.rating=parseFloat(this.value)||72"/>
+          </div>
+          <div>
+            <label class="vegas-field-label" style="font-size:0.55rem">Par</label>
+            <input class="vegas-input small" type="number" id="vegas-par" placeholder="72" value="${vegas.par}" oninput="vegas.par=parseInt(this.value)||72"/>
+          </div>
+        </div>
+      </div>
+
+      <div class="vegas-setup-section">
+        <label class="vegas-field-label">Holes</label>
+        <div class="vegas-radio-group">
+          <button class="vegas-radio-btn ${vegas.numHoles===18?'active':''}" onclick="vegas.numHoles=18;vegasRenderSetup()">18 Holes</button>
+          <button class="vegas-radio-btn ${vegas.numHoles===9?'active':''}" onclick="vegas.numHoles=9;vegasRenderSetup()">9 Holes</button>
+        </div>
+      </div>
+
+      <div class="vegas-setup-section">
+        <label class="vegas-field-label">Handicap Strokes</label>
+        <div class="vegas-radio-group">
+          <button class="vegas-radio-btn ${vegas.strokeMode==='low'?'active':''}" onclick="vegas.strokeMode='low';vegasRenderSetup()">Off Low Handicap</button>
+          <button class="vegas-radio-btn ${vegas.strokeMode==='full'?'active':''}" onclick="vegas.strokeMode='full';vegasRenderSetup()">Full Strokes</button>
+        </div>
+        <div style="font-size:0.65rem;color:var(--muted);margin-top:0.4rem;line-height:1.5">
+          ${vegas.strokeMode === 'low'
+            ? 'Low handicap plays at scratch (0). Others receive the difference in strokes.'
+            : 'Every player receives their full course handicap in strokes.'}
+        </div>
+      </div>
+    </div>
+
+    <button class="vegas-btn-primary" onclick="vegasStartRound()" style="width:100%">Start Round</button>
+  `;
+}
+
+function vegasAddPlayer() {
+  vegas.players.push({name:'', handicap:''});
+  vegasRenderSetup();
+}
+
+function vegasRemovePlayer() {
+  if (vegas.players.length > 2) vegas.players.pop();
+  vegasRenderSetup();
+}
+
+function vegasStartRound() {
+  // Validate
+  const named = vegas.players.filter(p => p.name.trim());
+  if (named.length < 2) { alert('Enter at least 2 player names.'); return; }
+
+  // Parse handicaps (default 0 if blank)
+  vegas.players = vegas.players.filter(p => p.name.trim()).map(p => ({
+    name: p.name.trim(),
+    handicap: parseFloat(p.handicap) || 0
+  }));
+
+  // Build hole pars (default par 4 for each)
+  const perHolePar = Math.round(vegas.par / vegas.numHoles);
+  vegas.holePars = Array(vegas.numHoles).fill(perHolePar);
+  // Adjust so they sum to the total par
+  let diff = vegas.par - vegas.holePars.reduce((a,b) => a+b, 0);
+  for (let i = 0; diff !== 0; i++) {
+    vegas.holePars[i % vegas.numHoles] += diff > 0 ? 1 : -1;
+    diff += diff > 0 ? -1 : 1;
+  }
+
+  // Init score grid
+  vegas.scores = vegas.players.map(() => Array(vegas.numHoles).fill(null));
+  vegas.currentHole = 0;
+  vegas.phase = 'scoring';
+  vegasRenderScoring();
+}
+
+// ── COURSE HANDICAP HELPERS ──
+function vegasCalcCourseHcps() {
+  return vegas.players.map(p => {
+    const hi = p.handicap;
+    return Math.round(hi * (vegas.slope / 113) + (vegas.rating - vegas.par));
+  });
+}
+
+function vegasCalcPlayingHcps(courseHcps) {
+  if (vegas.strokeMode === 'full') return courseHcps.slice();
+  const low = Math.min(...courseHcps);
+  return courseHcps.map(ch => ch - low);
+}
+
+// How many strokes does player get on this hole (1-indexed holeNum)?
+function vegasStrokesOnHole(playingHcp, holeNum, numHoles) {
+  if (playingHcp <= 0) return 0;
+  // Strokes wrap: first N holes get +1 if hcp > numHoles
+  const base = Math.floor(playingHcp / numHoles);
+  const extra = playingHcp % numHoles;
+  return base + (holeNum <= extra ? 1 : 0);
+}
+
+// ── SCORING SCREEN ──
+function vegasRenderScoring() {
+  const c = document.getElementById('tab-vegas-content');
+  const h = vegas.currentHole;
+  const holeNum = h + 1;
+  const holePar = vegas.holePars[h];
+
+  const courseHcps = vegasCalcCourseHcps();
+  const playingHcps = vegasCalcPlayingHcps(courseHcps);
+  const lowIdx = courseHcps.indexOf(Math.min(...courseHcps));
+
+  // Mini scorecard
+  let miniHead = '<th></th>';
+  for (let i = 0; i < vegas.numHoles; i++) {
+    miniHead += `<th class="${i===h?'cur-hole':''}" style="cursor:pointer" onclick="vegas.currentHole=${i};vegasRenderScoring()">${i+1}</th>`;
+  }
+  miniHead += '<th>Tot</th><th>Net</th>';
+
+  let miniRows = vegas.players.map((p, pi) => {
+    let row = `<td class="name-cell">${p.name}</td>`;
+    let tot = 0;
+    let filled = 0;
+    for (let i = 0; i < vegas.numHoles; i++) {
+      const s = vegas.scores[pi][i];
+      const val = s != null ? s : '';
+      if (s != null) { tot += s; filled++; }
+      row += `<td class="${i===h?'cur-hole':''}">${val}</td>`;
+    }
+    const totStr = filled > 0 ? tot : '-';
+    const netStr = filled > 0 ? tot - playingHcps[pi] : '-';
+    row += `<td style="font-weight:700">${totStr}</td>`;
+    row += `<td style="font-weight:700">${netStr}</td>`;
+    return `<tr>${row}</tr>`;
+  }).join('');
+
+  // Player score inputs for current hole
+  let playerInputs = vegas.players.map((p, pi) => {
+    const dots = vegasStrokesOnHole(playingHcps[pi], holeNum, vegas.numHoles);
+    const dotHtml = dots > 0 ? '<span class="vegas-stroke-dot"></span>'.repeat(dots) : '';
+    const val = vegas.scores[pi][h] != null ? vegas.scores[pi][h] : '';
+    const hcpLabel = vegas.strokeMode === 'low'
+      ? (playingHcps[pi] === 0 ? 'low man' : `gets ${playingHcps[pi]}`)
+      : `gets ${playingHcps[pi]}`;
+    return `
+      <div class="vegas-player-score-row">
+        <div>
+          <div class="vegas-player-name-line">${p.name}</div>
+          <div class="vegas-player-sub">HCP ${p.handicap} · Course ${courseHcps[pi]} · ${hcpLabel} ${dotHtml}</div>
+        </div>
+        <div class="vegas-net">${dots > 0 ? dots + ' dot' + (dots>1?'s':'') : ''}</div>
+        <input class="vegas-score-input" type="number" min="1" max="15" value="${val}"
+          id="vegas-si-${pi}" oninput="vegasSetScore(${pi},${h},this.value)"
+          ${pi===0 ? 'autofocus' : ''}/>
+      </div>
+    `;
+  }).join('');
+
+  c.innerHTML = `
+    <div class="vegas-hole-header">
+      <div>
+        <div class="vegas-hole-num">${holeNum}</div>
+        <div class="vegas-hole-meta">Par ${holePar} · ${vegas.strokeMode === 'low' ? 'Off Low' : 'Full Strokes'}</div>
+      </div>
+      <div class="vegas-hole-nav">
+        <button class="vegas-nav-btn" onclick="vegasEditPlayers()">Edit Players</button>
+        <button class="vegas-nav-btn" ${h===0?'disabled':''} onclick="vegas.currentHole--;vegasRenderScoring()">← Prev</button>
+        <button class="vegas-nav-btn" ${h===vegas.numHoles-1?'disabled':''} onclick="vegas.currentHole++;vegasRenderScoring()">Next →</button>
+      </div>
+    </div>
+
+    <div style="padding:1.25rem;background:var(--white);border:1px solid var(--cream-dark);border-top:none">
+      ${playerInputs}
+    </div>
+
+    <div style="margin-top:1.5rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">
+        <div style="font-size:0.62rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted)">Scorecard</div>
+        <button class="vegas-btn-secondary" onclick="vegasShowResults()">View Results</button>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="vegas-scorecard-mini">
+          <thead><tr>${miniHead}</tr></thead>
+          <tbody>${miniRows}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  // Auto-focus first empty input
+  for (let pi = 0; pi < vegas.players.length; pi++) {
+    if (vegas.scores[pi][h] == null) {
+      const el = document.getElementById('vegas-si-' + pi);
+      if (el) el.focus();
+      break;
+    }
+  }
+}
+
+function vegasSetScore(playerIdx, holeIdx, val) {
+  const n = parseInt(val);
+  vegas.scores[playerIdx][holeIdx] = isNaN(n) ? null : n;
+  // Re-render scorecard without losing focus
+  vegasUpdateMiniCard();
+}
+
+function vegasUpdateMiniCard() {
+  const courseHcps = vegasCalcCourseHcps();
+  const playingHcps = vegasCalcPlayingHcps(courseHcps);
+  const table = document.querySelector('.vegas-scorecard-mini tbody');
+  if (!table) return;
+
+  table.innerHTML = vegas.players.map((p, pi) => {
+    let row = `<td class="name-cell">${p.name}</td>`;
+    let tot = 0, filled = 0;
+    for (let i = 0; i < vegas.numHoles; i++) {
+      const s = vegas.scores[pi][i];
+      if (s != null) { tot += s; filled++; }
+      row += `<td class="${i===vegas.currentHole?'cur-hole':''}">${s != null ? s : ''}</td>`;
+    }
+    row += `<td style="font-weight:700">${filled > 0 ? tot : '-'}</td>`;
+    row += `<td style="font-weight:700">${filled > 0 ? tot - playingHcps[pi] : '-'}</td>`;
+    return `<tr>${row}</tr>`;
+  }).join('');
+}
+
+function vegasEditPlayers() {
+  vegas.phase = 'setup';
+  vegasRenderSetup();
+}
+
+// ── RESULTS SCREEN ──
+function vegasShowResults() {
+  const c = document.getElementById('tab-vegas-content');
+  const courseHcps = vegasCalcCourseHcps();
+  const playingHcps = vegasCalcPlayingHcps(courseHcps);
+
+  // Build full scorecard
+  let scHead = '<th></th>';
+  for (let i = 0; i < vegas.numHoles; i++) scHead += `<th>${i+1}</th>`;
+  scHead += '<th>Gross</th><th>HCP</th><th>Net</th>';
+
+  // Par row
+  let parRow = '<td class="name-cell" style="color:var(--muted)">Par</td>';
+  for (let i = 0; i < vegas.numHoles; i++) parRow += `<td>${vegas.holePars[i]}</td>`;
+  const totalPar = vegas.holePars.reduce((a,b)=>a+b,0);
+  parRow += `<td style="font-weight:700">${totalPar}</td><td></td><td></td>`;
+
+  let results = [];
+  let scRows = vegas.players.map((p, pi) => {
+    let row = `<td class="name-cell">${p.name}</td>`;
+    let gross = 0, filled = 0;
+    for (let i = 0; i < vegas.numHoles; i++) {
+      const s = vegas.scores[pi][i];
+      if (s != null) { gross += s; filled++; }
+      // Color code: under par green, over par red
+      let style = '';
+      if (s != null && vegas.holePars[i]) {
+        const vs = s - vegas.holePars[i];
+        if (vs < 0) style = 'color:var(--green-mid);font-weight:700';
+        else if (vs > 0) style = 'color:#c0392b';
+      }
+      row += `<td style="${style}">${s != null ? s : '-'}</td>`;
+    }
+    const net = gross - playingHcps[pi];
+    results.push({ name: p.name, gross, net, hcp: playingHcps[pi], courseHcp: courseHcps[pi], filled });
+    const grossVsPar = gross - totalPar;
+    const netVsPar = net - totalPar;
+    const grossStr = filled > 0 ? `${gross}` : '-';
+    const netStr = filled > 0 ? `${net}` : '-';
+    row += `<td style="font-weight:700">${grossStr}</td>`;
+    row += `<td>${playingHcps[pi]}</td>`;
+    row += `<td style="font-weight:700">${netStr}</td>`;
+    return `<tr>${row}</tr>`;
+  }).join('');
+
+  // Sort results by net score (low wins)
+  const sorted = [...results].filter(r => r.filled > 0).sort((a,b) => a.net - b.net);
+  const modeLabel = vegas.strokeMode === 'low' ? 'Off Low Handicap' : 'Full Strokes';
+
+  let standingsRows = sorted.map((r, i) => {
+    const vsParNet = r.net - totalPar;
+    const vsParGross = r.gross - totalPar;
+    const fmtVs = v => v === 0 ? 'E' : (v > 0 ? '+' + v : '' + v);
+    return `<tr>
+      <td style="font-weight:700;color:${i===0?'var(--green-mid)':'var(--ink)'}">${i+1}</td>
+      <td style="font-weight:600">${r.name}</td>
+      <td>${r.gross} (${fmtVs(vsParGross)})</td>
+      <td>${r.hcp}</td>
+      <td style="font-weight:700;color:${i===0?'var(--green-mid)':'var(--ink)'}">${r.net} (${fmtVs(vsParNet)})</td>
+    </tr>`;
+  }).join('');
+
+  c.innerHTML = `
+    <div style="display:flex;gap:0.5rem;margin-bottom:1.5rem;flex-wrap:wrap">
+      <button class="vegas-btn-secondary" onclick="vegasEditPlayers()">Edit Players</button>
+      <button class="vegas-btn-secondary" onclick="vegas.phase='scoring';vegasRenderScoring()">Back to Scoring</button>
+      <button class="vegas-btn-danger" onclick="if(confirm('Start a new round? Current scores will be lost.')){vegas.players=[];vegas.scores=[];vegas.phase='setup';vegasRenderSetup()}">New Round</button>
+    </div>
+
+    <div style="margin-bottom:1.5rem">
+      <div style="font-size:0.62rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:0.5rem">Standings · ${modeLabel}</div>
+      <table class="vegas-totals-table">
+        <thead><tr><th>#</th><th>Player</th><th>Gross</th><th>HCP</th><th>Net</th></tr></thead>
+        <tbody>${standingsRows}</tbody>
+      </table>
+    </div>
+
+    <div>
+      <div style="font-size:0.62rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:0.5rem">Full Scorecard</div>
+      <div style="overflow-x:auto">
+        <table class="vegas-scorecard-mini">
+          <thead><tr>${scHead}</tr></thead>
+          <tbody>
+            <tr style="background:var(--cream)">${parRow}</tr>
+            ${scRows}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    ${sorted.length > 0 ? `
+    <div class="vegas-result-banner" style="margin-top:1.5rem">
+      <div>
+        <div style="font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;opacity:0.8">Winner</div>
+        <div style="font-family:'DM Serif Display',serif;font-size:1.4rem">${sorted[0].name}</div>
+      </div>
+      <div class="vegas-result-points">${sorted[0].net}</div>
+      <div class="vegas-result-math">Net ${sorted[0].net} (Gross ${sorted[0].gross} − ${sorted[0].hcp} HCP)</div>
+    </div>` : ''}
+  `;
+}
+
 // Allow Enter key on login + pre-fill remembered username
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('password').addEventListener('keydown', e => {
