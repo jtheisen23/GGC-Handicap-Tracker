@@ -468,6 +468,30 @@
       border-top: 1px solid var(--cream-dark);
     }
 
+    /* ── MATCHUP STROKE MODE TOGGLE ── */
+    .stroke-mode-group {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .stroke-mode-btn {
+      padding: 0.5rem 1.2rem;
+      border: 1px solid var(--cream-dark);
+      background: var(--white);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .stroke-mode-btn.active {
+      background: var(--green-deep);
+      border-color: var(--green-deep);
+      color: var(--cream);
+    }
+
     /* ── VEGAS SCOREKEEPER ── */
     .vegas-setup-grid {
       display: grid;
@@ -1094,6 +1118,17 @@
         </div>
       </div>
 
+      <div style="margin-bottom:1.5rem">
+        <div class="stat-label" style="margin-bottom:0.5rem">Handicap Strokes</div>
+        <div class="stroke-mode-group">
+          <button class="stroke-mode-btn active" onclick="setStrokeMode('low', this)" id="stroke-mode-low">Off Low Handicap</button>
+          <button class="stroke-mode-btn" onclick="setStrokeMode('full', this)" id="stroke-mode-full">Full Strokes</button>
+        </div>
+        <div style="font-size:0.65rem;color:var(--muted);margin-top:0.4rem;line-height:1.5" id="stroke-mode-desc">
+          Low handicap plays at scratch, others receive the difference in strokes.
+        </div>
+      </div>
+
       <!-- Live probability preview -->
       <div id="matchup-live-preview" style="display:none;background:var(--white);border:1px solid var(--cream-dark);padding:1.25rem;margin-bottom:1.5rem">
         <div style="font-size:0.62rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:0.75rem">Win Probability Preview</div>
@@ -1123,11 +1158,15 @@
           </div>
 
           <div>
+            <div style="font-size:0.65rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:0.4rem">Handicap Stroke Modes</div>
+            <p style="margin-bottom:0.4rem"><strong>Off Low Handicap</strong> — The lowest handicap player plays at scratch (0 strokes). All other players receive strokes equal to the difference between their course handicap and the low player's.</p>
+            <p style="margin-bottom:0.75rem"><strong>Full Strokes</strong> — Each player receives their entire course handicap in strokes. Used when playing against the course or in formats where every stroke matters independently.</p>
+
             <div style="font-size:0.65rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:0.4rem">Stroke Allocations</div>
-            <p style="margin-bottom:0.4rem"><strong>Stroke Play</strong> — Full difference in course handicaps. Lower HCP gives strokes to higher HCP.</p>
-            <p style="margin-bottom:0.4rem"><strong>Match Play</strong> — ¾ of the full stroke difference per USGA guidelines, spread across the hardest holes on the scorecard.</p>
-            <p style="margin-bottom:0.4rem"><strong>Skins</strong> — Full stroke difference, allocated on the hardest holes (by stroke index).</p>
-            <p><strong>Stableford</strong> — Each golfer plays off their full course handicap, earning points per hole relative to par.</p>
+            <p style="margin-bottom:0.4rem"><strong>Stroke Play</strong> — Full playing handicap strokes. In "Off Low" mode, this is the difference; in "Full" mode, each player's full course handicap.</p>
+            <p style="margin-bottom:0.4rem"><strong>Match Play</strong> — ¾ of playing handicap strokes per USGA guidelines, spread across the hardest holes on the scorecard.</p>
+            <p style="margin-bottom:0.4rem"><strong>Skins</strong> — Full playing handicap strokes, allocated on the hardest holes (by stroke index).</p>
+            <p><strong>Stableford</strong> — Each golfer plays off their playing handicap, earning points per hole relative to par.</p>
           </div>
 
           <div>
@@ -2057,6 +2096,21 @@ function renderCompare() {
 // ══════════════════════════════════════════
 //  MATCHUP
 // ══════════════════════════════════════════
+let strokeMode = 'low'; // 'low' = off low handicap, 'full' = full strokes
+
+function setStrokeMode(mode, btn) {
+  strokeMode = mode;
+  document.querySelectorAll('.stroke-mode-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const desc = document.getElementById('stroke-mode-desc');
+  if (mode === 'low') {
+    desc.textContent = 'Low handicap plays at scratch, others receive the difference in strokes.';
+  } else {
+    desc.textContent = 'Each player receives their full course handicap in strokes.';
+  }
+  updateLiveMatchup();
+}
+
 function updateLiveMatchup() {
   const g1id  = document.getElementById('matchup-g1').value;
   const g2id  = document.getElementById('matchup-g2').value;
@@ -2089,7 +2143,12 @@ function updateLiveMatchup() {
     const chcp1 = !isNaN(slope) ? Math.round(g1.hcp * (slope/113) + (isNaN(rating) ? 0 : rating - par)) : Math.round(g1.hcp);
     const chcp2 = !isNaN(slope) ? Math.round(g2.hcp * (slope/113) + (isNaN(rating) ? 0 : rating - par)) : Math.round(g2.hcp);
     prob1 += (chcp2 - chcp1) * 3.5;
-    detail += `Course HCP: ${g1.name} ${chcp1} · ${g2.name} ${chcp2}. `;
+    if (strokeMode === 'full') {
+      detail += `Full Strokes: ${g1.name} ${chcp1} · ${g2.name} ${chcp2}. `;
+    } else {
+      const lowMin = Math.min(chcp1, chcp2);
+      detail += `Off Low: ${g1.name} ${chcp1 - lowMin} · ${g2.name} ${chcp2 - lowMin}. `;
+    }
   }
 
   // Apply form adjustments if cached
@@ -2162,12 +2221,22 @@ async function runMatchup() {
   const courseHcp1 = Math.round(hcp1 * (slope / 113) + (isNaN(rating) ? 0 : rating - par));
   const courseHcp2 = Math.round(hcp2 * (slope / 113) + (isNaN(rating) ? 0 : rating - par));
 
+  // Stroke calculations depend on stroke mode
+  const isFullStrokes = strokeMode === 'full';
+  const lowCourseHcp = Math.min(courseHcp1, courseHcp2);
+
+  // "Off low" strokes: relative to the lowest handicap player
+  const playHcp1 = isFullStrokes ? courseHcp1 : courseHcp1 - lowCourseHcp;
+  const playHcp2 = isFullStrokes ? courseHcp2 : courseHcp2 - lowCourseHcp;
+
   // Stroke play strokes given (lower hcp gives strokes to higher)
   const strokeDiff = Math.abs(courseHcp1 - courseHcp2);
   const strokeGiver = courseHcp1 < courseHcp2 ? name1 : name2;
   const strokeReceiver = courseHcp1 < courseHcp2 ? name2 : name1;
 
   // Match play allocation (strokes on hardest holes)
+  const matchPlayHcp1 = Math.round(playHcp1 * 0.75);
+  const matchPlayHcp2 = Math.round(playHcp2 * 0.75);
   const matchStrokes = Math.round(strokeDiff * 0.75); // 3/4 handicap for match play per USGA
 
   // ── WIN PROBABILITY ──────────────────────────────────────────────
@@ -2231,18 +2300,23 @@ async function runMatchup() {
     </tr>`;
   }
 
+  const modeLabel = isFullStrokes ? 'Full Strokes' : 'Off Low Handicap';
+
   result.innerHTML = `
+    <div style="font-size:0.65rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:0.75rem">Mode: <strong style="color:var(--green-deep)">${modeLabel}</strong></div>
     <div class="stat-grid" style="margin-bottom:1.5rem">
       <div class="stat-card" style="border-top:4px solid ${COMPARE_COLORS[0]}">
         <div class="stat-label">${name1}</div>
         <div class="stat-value">${fmtHcp(hcp1)}</div>
         <div class="stat-sub">Handicap Index · Course HCP: <strong>${courseHcp1}</strong></div>
+        <div class="stat-sub" style="margin-top:0.25rem">Playing HCP: <strong>${playHcp1}</strong>${isFullStrokes ? '' : courseHcp1 === lowCourseHcp ? ' (low man)' : ''}</div>
         ${form1 ? `<div class="stat-sub" style="margin-top:0.3rem;color:${form1.statusColor}">${form1.status}</div>` : ''}
       </div>
       <div class="stat-card" style="border-top:4px solid ${COMPARE_COLORS[1]}">
         <div class="stat-label">${name2}</div>
         <div class="stat-value">${fmtHcp(hcp2)}</div>
         <div class="stat-sub">Handicap Index · Course HCP: <strong>${courseHcp2}</strong></div>
+        <div class="stat-sub" style="margin-top:0.25rem">Playing HCP: <strong>${playHcp2}</strong>${isFullStrokes ? '' : courseHcp2 === lowCourseHcp ? ' (low man)' : ''}</div>
         ${form2 ? `<div class="stat-sub" style="margin-top:0.3rem;color:${form2.statusColor}">${form2.status}</div>` : ''}
       </div>
     </div>
@@ -2282,27 +2356,39 @@ async function runMatchup() {
     <!-- Stroke allocations -->
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Format</th><th>Strokes</th><th>Detail</th></tr></thead>
+        <thead><tr><th>Format</th><th>${isFullStrokes ? name1 : 'Strokes'}</th>${isFullStrokes ? `<th>${name2}</th>` : ''}<th>Detail</th></tr></thead>
         <tbody>
           <tr>
             <td><strong>Stroke Play</strong></td>
-            <td>${strokeDiff === 0 ? 'Even' : strokeDiff + ' strokes'}</td>
-            <td style="font-size:0.75rem;color:var(--muted)">${strokeDiff === 0 ? 'Dead even' : strokeGiver + ' gives ' + strokeDiff + ' stroke' + (strokeDiff>1?'s':'') + ' to ' + strokeReceiver}</td>
+            ${isFullStrokes
+              ? `<td><strong>${playHcp1}</strong></td><td><strong>${playHcp2}</strong></td>
+                 <td style="font-size:0.75rem;color:var(--muted)">Each player receives full course handicap strokes</td>`
+              : `<td>${strokeDiff === 0 ? 'Even' : strokeDiff + ' strokes'}</td>
+                 <td style="font-size:0.75rem;color:var(--muted)">${strokeDiff === 0 ? 'Dead even' : strokeGiver + ' gives ' + strokeDiff + ' stroke' + (strokeDiff>1?'s':'') + ' to ' + strokeReceiver}</td>`}
           </tr>
           <tr>
             <td><strong>Match Play</strong></td>
-            <td>${matchStrokes === 0 ? 'Even' : matchStrokes + ' strokes'}</td>
-            <td style="font-size:0.75rem;color:var(--muted)">${matchStrokes === 0 ? 'Dead even' : strokeGiver + ' gives ' + matchStrokes + ' stroke' + (matchStrokes>1?'s':'') + ' to ' + strokeReceiver + ' (¾ allowance)'}</td>
+            ${isFullStrokes
+              ? `<td><strong>${matchPlayHcp1}</strong></td><td><strong>${matchPlayHcp2}</strong></td>
+                 <td style="font-size:0.75rem;color:var(--muted)">¾ of full course handicap per USGA guidelines</td>`
+              : `<td>${matchStrokes === 0 ? 'Even' : matchStrokes + ' strokes'}</td>
+                 <td style="font-size:0.75rem;color:var(--muted)">${matchStrokes === 0 ? 'Dead even' : strokeGiver + ' gives ' + matchStrokes + ' stroke' + (matchStrokes>1?'s':'') + ' to ' + strokeReceiver + ' (¾ allowance)'}</td>`}
           </tr>
           <tr>
             <td><strong>Skins</strong></td>
-            <td>${strokeDiff === 0 ? 'Even' : strokeDiff + ' strokes'}</td>
-            <td style="font-size:0.75rem;color:var(--muted)">${strokeDiff === 0 ? 'Dead even' : strokeReceiver + ' gets ' + strokeDiff + ' pop' + (strokeDiff>1?'s':'') + ' spread across hardest holes'}</td>
+            ${isFullStrokes
+              ? `<td><strong>${playHcp1}</strong></td><td><strong>${playHcp2}</strong></td>
+                 <td style="font-size:0.75rem;color:var(--muted)">Full strokes allocated on hardest holes by stroke index</td>`
+              : `<td>${strokeDiff === 0 ? 'Even' : strokeDiff + ' strokes'}</td>
+                 <td style="font-size:0.75rem;color:var(--muted)">${strokeDiff === 0 ? 'Dead even' : strokeReceiver + ' gets ' + strokeDiff + ' pop' + (strokeDiff>1?'s':'') + ' spread across hardest holes'}</td>`}
           </tr>
           <tr>
             <td><strong>Stableford</strong></td>
-            <td>Full handicap</td>
-            <td style="font-size:0.75rem;color:var(--muted)">${name1}: ${courseHcp1} pts · ${name2}: ${courseHcp2} pts</td>
+            ${isFullStrokes
+              ? `<td><strong>${playHcp1}</strong></td><td><strong>${playHcp2}</strong></td>
+                 <td style="font-size:0.75rem;color:var(--muted)">Points earned per hole relative to par using full handicap</td>`
+              : `<td>Full handicap</td>
+                 <td style="font-size:0.75rem;color:var(--muted)">${name1}: ${courseHcp1} pts · ${name2}: ${courseHcp2} pts</td>`}
           </tr>
         </tbody>
       </table>
